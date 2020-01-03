@@ -39,6 +39,7 @@ import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.ScrollSlidingTextTabStrip;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -50,6 +51,7 @@ public class DialogOrContactPickerActivity extends BaseFragment {
         private FrameLayout fragmentView;
         private ActionBar actionBar;
         private RecyclerListView listView;
+        private RecyclerListView listView2;
         private int selectedType;
 
         public ViewPage(Context context) {
@@ -106,6 +108,7 @@ public class DialogOrContactPickerActivity extends BaseFragment {
         args.putBoolean("disableSections", true);
         args.putBoolean("needFinishFragment", false);
         args.putBoolean("resetDelegate", false);
+        args.putBoolean("allowSelf", false);
         contactsActivity = new ContactsActivity(args);
         contactsActivity.setDelegate((user, param, activity) -> showBlockAlert(user));
         contactsActivity.onFragmentCreate();
@@ -250,6 +253,9 @@ public class DialogOrContactPickerActivity extends BaseFragment {
                     }
                     if (viewPages[a].listView != null) {
                         viewPages[a].listView.setPadding(0, actionBarHeight, 0, 0);
+                    }
+                    if (viewPages[a].listView2 != null) {
+                        viewPages[a].listView2.setPadding(0, actionBarHeight, 0, 0);
                     }
                 }
                 globalIgnoreLayout = false;
@@ -483,53 +489,66 @@ public class DialogOrContactPickerActivity extends BaseFragment {
             if (a == 0) {
                 viewPages[a].parentFragment = dialogsActivity;
                 viewPages[a].listView = dialogsActivity.getListView();
+                viewPages[a].listView2 = dialogsActivity.getSearchListView();
             } else if (a == 1) {
                 viewPages[a].parentFragment = contactsActivity;
                 viewPages[a].listView = contactsActivity.getListView();
                 viewPages[a].setVisibility(View.GONE);
             }
             viewPages[a].fragmentView = (FrameLayout) viewPages[a].parentFragment.getFragmentView();
-            viewPages[a].listView.setClipToPadding(false);
             viewPages[a].actionBar = viewPages[a].parentFragment.getActionBar();
             viewPages[a].addView(viewPages[a].fragmentView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             viewPages[a].addView(viewPages[a].actionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
             viewPages[a].actionBar.setVisibility(View.GONE);
 
-            RecyclerView.OnScrollListener onScrollListener = viewPages[a].listView.getOnScrollListener();
-            viewPages[a].listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
-                @Override
-                public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
-                    onScrollListener.onScrollStateChanged(recyclerView, newState);
-                    if (newState != RecyclerView.SCROLL_STATE_DRAGGING) {
-                        int scrollY = (int) -actionBar.getTranslationY();
-                        int actionBarHeight = ActionBar.getCurrentActionBarHeight();
-                        if (scrollY != 0 && scrollY != actionBarHeight) {
-                            if (scrollY < actionBarHeight / 2) {
-                                viewPages[0].listView.smoothScrollBy(0, -scrollY);
-                            } else {
-                                viewPages[0].listView.smoothScrollBy(0, actionBarHeight - scrollY);
+            for (int i = 0; i < 2; i++) {
+                RecyclerListView listView = i == 0 ? viewPages[a].listView : viewPages[a].listView2;
+                if (listView == null) {
+                    continue;
+                }
+                listView.setClipToPadding(false);
+                RecyclerView.OnScrollListener onScrollListener = listView.getOnScrollListener();
+                listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
+                    @Override
+                    public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                        onScrollListener.onScrollStateChanged(recyclerView, newState);
+                        if (newState != RecyclerView.SCROLL_STATE_DRAGGING) {
+                            int scrollY = (int) -actionBar.getTranslationY();
+                            int actionBarHeight = ActionBar.getCurrentActionBarHeight();
+                            if (scrollY != 0 && scrollY != actionBarHeight) {
+                                if (scrollY < actionBarHeight / 2) {
+                                    viewPages[0].listView.smoothScrollBy(0, -scrollY);
+                                    if (viewPages[0].listView2 != null) {
+                                        viewPages[0].listView2.smoothScrollBy(0, -scrollY);
+                                    }
+                                } else {
+                                    viewPages[0].listView.smoothScrollBy(0, actionBarHeight - scrollY);
+                                    if (viewPages[0].listView2 != null) {
+                                        viewPages[0].listView2.smoothScrollBy(0, actionBarHeight - scrollY);
+                                    }
+                                }
                             }
                         }
                     }
-                }
 
-                @Override
-                public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
-                    onScrollListener.onScrolled(recyclerView, dx, dy);
-                    if (recyclerView == viewPages[0].listView) {
-                        float currentTranslation = actionBar.getTranslationY();
-                        float newTranslation = currentTranslation - dy;
-                        if (newTranslation < -ActionBar.getCurrentActionBarHeight()) {
-                            newTranslation = -ActionBar.getCurrentActionBarHeight();
-                        } else if (newTranslation > 0) {
-                            newTranslation = 0;
-                        }
-                        if (newTranslation != currentTranslation) {
-                            setScrollY(newTranslation);
+                    @Override
+                    public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                        onScrollListener.onScrolled(recyclerView, dx, dy);
+                        if (recyclerView == viewPages[0].listView || recyclerView == viewPages[0].listView2) {
+                            float currentTranslation = actionBar.getTranslationY();
+                            float newTranslation = currentTranslation - dy;
+                            if (newTranslation < -ActionBar.getCurrentActionBarHeight()) {
+                                newTranslation = -ActionBar.getCurrentActionBarHeight();
+                            } else if (newTranslation > 0) {
+                                newTranslation = 0;
+                            }
+                            if (newTranslation != currentTranslation) {
+                                setScrollY(newTranslation);
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         }
 
         frameLayout.addView(actionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -578,6 +597,9 @@ public class DialogOrContactPickerActivity extends BaseFragment {
         actionBar.setTranslationY(value);
         for (int a = 0; a < viewPages.length; a++) {
             viewPages[a].listView.setPinnedSectionOffsetY((int) value);
+            if (viewPages[a].listView2 != null) {
+                viewPages[a].listView2.setPinnedSectionOffsetY((int) value);
+            }
         }
         fragmentView.invalidate();
     }
@@ -625,13 +647,22 @@ public class DialogOrContactPickerActivity extends BaseFragment {
     private void switchToCurrentSelectedMode(boolean animated) {
         for (int a = 0; a < viewPages.length; a++) {
             viewPages[a].listView.stopScroll();
+            if (viewPages[a].listView2 != null) {
+                viewPages[a].listView2.stopScroll();
+            }
         }
         int a = animated ? 1 : 0;
-        RecyclerView.Adapter currentAdapter = viewPages[a].listView.getAdapter();
-        viewPages[a].listView.setPinnedHeaderShadowDrawable(null);
-        if (actionBar.getTranslationY() != 0) {
-            LinearLayoutManager layoutManager = (LinearLayoutManager) viewPages[a].listView.getLayoutManager();
-            layoutManager.scrollToPositionWithOffset(0, (int) actionBar.getTranslationY());
+        for (int i = 0; i < 2; i++) {
+            RecyclerListView listView = i == 0 ? viewPages[a].listView : viewPages[a].listView2;
+            if (listView == null) {
+                continue;
+            }
+            RecyclerView.Adapter currentAdapter = listView.getAdapter();
+            listView.setPinnedHeaderShadowDrawable(null);
+            if (actionBar.getTranslationY() != 0) {
+                LinearLayoutManager layoutManager = (LinearLayoutManager) listView.getLayoutManager();
+                layoutManager.scrollToPositionWithOffset(0, (int) actionBar.getTranslationY());
+            }
         }
     }
 
@@ -650,24 +681,8 @@ public class DialogOrContactPickerActivity extends BaseFragment {
         arrayList.add(new ThemeDescription(scrollSlidingTextTabStrip.getTabsContainer(), ThemeDescription.FLAG_BACKGROUNDFILTER | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{TextView.class}, null, null, null, Theme.key_actionBarTabLine));
         arrayList.add(new ThemeDescription(null, 0, null, null, new Drawable[]{scrollSlidingTextTabStrip.getSelectorDrawable()}, null, Theme.key_actionBarTabSelector));
 
-        /*for (int a = 0; a < viewPages.length; a++) { TODO
-            arrayList.add(new ThemeDescription(viewPages[a].listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{TextSettingsCell.class, HeaderCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-            arrayList.add(new ThemeDescription(viewPages[a].listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
-            arrayList.add(new ThemeDescription(viewPages[a].listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
-
-            arrayList.add(new ThemeDescription(viewPages[a].listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
-
-            arrayList.add(new ThemeDescription(viewPages[a].listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{ShadowSectionCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
-
-            arrayList.add(new ThemeDescription(viewPages[a].listView, 0, new Class[]{HeaderCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueHeader));
-
-            arrayList.add(new ThemeDescription(viewPages[a].listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{TextInfoPrivacyCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
-            arrayList.add(new ThemeDescription(viewPages[a].listView, 0, new Class[]{TextInfoPrivacyCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText4));
-
-            arrayList.add(new ThemeDescription(viewPages[a].listView, ThemeDescription.FLAG_CHECKTAG, new Class[]{TextSettingsCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-            arrayList.add(new ThemeDescription(viewPages[a].listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
-            arrayList.add(new ThemeDescription(viewPages[a].listView, ThemeDescription.FLAG_CHECKTAG, new Class[]{TextSettingsCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteRedText2));
-        }*/
+        Collections.addAll(arrayList, dialogsActivity.getThemeDescriptions());
+        Collections.addAll(arrayList, contactsActivity.getThemeDescriptions());
 
         return arrayList.toArray(new ThemeDescription[0]);
     }

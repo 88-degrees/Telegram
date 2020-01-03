@@ -59,7 +59,7 @@ import java.util.concurrent.CountDownLatch;
 public class ChatEditTypeActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private EditTextBoldCursor usernameTextView;
-    private EditText editText;
+    private EditTextBoldCursor editText;
 
     private TextInfoPrivacyCell typeInfoCell;
     private HeaderCell headerCell;
@@ -118,28 +118,14 @@ public class ChatEditTypeActivity extends BaseFragment implements NotificationCe
     public boolean onFragmentCreate() {
         currentChat = getMessagesController().getChat(chatId);
         if (currentChat == null) {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            getMessagesStorage().getStorageQueue().postRunnable(() -> {
-                currentChat = getMessagesStorage().getChat(chatId);
-                countDownLatch.countDown();
-            });
-            try {
-                countDownLatch.await();
-            } catch (Exception e) {
-                FileLog.e(e);
-            }
+            currentChat = getMessagesStorage().getChatSync(chatId);
             if (currentChat != null) {
                 getMessagesController().putChat(currentChat, true);
             } else {
                 return false;
             }
             if (info == null) {
-                getMessagesStorage().loadChatInfo(chatId, countDownLatch, false, false);
-                try {
-                    countDownLatch.await();
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
+                info = getMessagesStorage().loadChatInfo(chatId, new CountDownLatch(1), false, false);
                 if (info == null) {
                     return false;
                 }
@@ -301,7 +287,7 @@ public class ChatEditTypeActivity extends BaseFragment implements NotificationCe
         publicContainer.setOrientation(LinearLayout.HORIZONTAL);
         linkContainer.addView(publicContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 36, 23, 7, 23, 0));
 
-        editText = new EditText(context);
+        editText = new EditTextBoldCursor(context);
         editText.setText(getMessagesController().linkPrefix + "/");
         editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
         editText.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText));
@@ -497,10 +483,12 @@ public class ChatEditTypeActivity extends BaseFragment implements NotificationCe
         String newUserName = isPrivate ? "" : usernameTextView.getText().toString();
         if (!oldUserName.equals(newUserName)) {
             if (!ChatObject.isChannel(currentChat)) {
-                getMessagesController().convertToMegaGroup(getParentActivity(), chatId, param -> {
-                    chatId = param;
-                    currentChat = getMessagesController().getChat(param);
-                    processDone();
+                getMessagesController().convertToMegaGroup(getParentActivity(), chatId, this, param -> {
+                    if (param != 0) {
+                        chatId = param;
+                        currentChat = getMessagesController().getChat(param);
+                        processDone();
+                    }
                 });
                 return false;
             } else {
@@ -817,7 +805,7 @@ public class ChatEditTypeActivity extends BaseFragment implements NotificationCe
                 new ThemeDescription(adminnedChannelsLayout, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{AdminedChannelCell.class}, new String[]{"statusTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText),
                 new ThemeDescription(adminnedChannelsLayout, ThemeDescription.FLAG_LINKCOLOR, new Class[]{AdminedChannelCell.class}, new String[]{"statusTextView"}, null, null, null, Theme.key_windowBackgroundWhiteLinkText),
                 new ThemeDescription(adminnedChannelsLayout, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{AdminedChannelCell.class}, new String[]{"deleteButton"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText),
-                new ThemeDescription(null, 0, null, null, new Drawable[]{Theme.avatar_broadcastDrawable, Theme.avatar_savedDrawable}, cellDelegate, Theme.key_avatar_text),
+                new ThemeDescription(null, 0, null, null, new Drawable[]{Theme.avatar_savedDrawable}, cellDelegate, Theme.key_avatar_text),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundRed),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundOrange),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundViolet),

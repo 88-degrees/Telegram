@@ -144,28 +144,14 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
     public boolean onFragmentCreate() {
         currentChat = MessagesController.getInstance(currentAccount).getChat(chatId);
         if (currentChat == null) {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(() -> {
-                currentChat = MessagesStorage.getInstance(currentAccount).getChat(chatId);
-                countDownLatch.countDown();
-            });
-            try {
-                countDownLatch.await();
-            } catch (Exception e) {
-                FileLog.e(e);
-            }
+            currentChat = MessagesStorage.getInstance(currentAccount).getChatSync(chatId);
             if (currentChat != null) {
                 MessagesController.getInstance(currentAccount).putChat(currentChat, true);
             } else {
                 return false;
             }
             if (info == null) {
-                MessagesStorage.getInstance(currentAccount).loadChatInfo(chatId, countDownLatch, false, false);
-                try {
-                    countDownLatch.await();
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
+                info = MessagesStorage.getInstance(currentAccount).loadChatInfo(chatId, new CountDownLatch(1), false, false);
                 if (info == null) {
                     return false;
                 }
@@ -405,7 +391,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
         frameLayout.addView(avatarImage, LayoutHelper.createFrame(64, 64, Gravity.TOP | (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT), LocaleController.isRTL ? 0 : 16, 12, LocaleController.isRTL ? 16 : 0, 12));
 
         if (ChatObject.canChangeChatInfo(currentChat)) {
-            avatarDrawable.setInfo(5, null, null, false);
+            avatarDrawable.setInfo(5, null, null);
 
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             paint.setColor(0x55000000);
@@ -455,7 +441,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
 
             showAvatarProgress(false, false);
         } else {
-            avatarDrawable.setInfo(5, currentChat.title, null, false);
+            avatarDrawable.setInfo(5, currentChat.title, null);
         }
 
         nameTextView = new EditTextEmoji(context, sizeNotifierFrameLayout, this, EditTextEmoji.STYLE_FRAGMENT);
@@ -467,7 +453,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
         nameTextView.setEnabled(ChatObject.canChangeChatInfo(currentChat));
         nameTextView.setFocusable(nameTextView.isEnabled());
         InputFilter[] inputFilters = new InputFilter[1];
-        inputFilters[0] = new InputFilter.LengthFilter(100);
+        inputFilters[0] = new InputFilter.LengthFilter(128);
         nameTextView.setFilters(inputFilters);
         frameLayout.addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, LocaleController.isRTL ? 5 : 96, 0, LocaleController.isRTL ? 96 : 5, 0));
 
@@ -540,7 +526,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
                 if (info != null && info.location instanceof TLRPC.TL_channelLocation) {
                     fragment.setInitialLocation((TLRPC.TL_channelLocation) info.location);
                 }
-                fragment.setDelegate((location, live) -> {
+                fragment.setDelegate((location, live, notify, scheduleDate) -> {
                     TLRPC.TL_channelLocation channelLocation = new TLRPC.TL_channelLocation();
                     channelLocation.address = location.address;
                     channelLocation.geo_point = location.geo;
@@ -897,7 +883,11 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
         }
         donePressed = true;
         if (!ChatObject.isChannel(currentChat) && !historyHidden) {
-            MessagesController.getInstance(currentAccount).convertToMegaGroup(getParentActivity(), chatId, param -> {
+            MessagesController.getInstance(currentAccount).convertToMegaGroup(getParentActivity(), chatId, this, param -> {
+                if (param == 0) {
+                    donePressed = false;
+                    return;
+                }
                 chatId = param;
                 currentChat = MessagesController.getInstance(currentAccount).getChat(param);
                 donePressed = false;
@@ -1213,7 +1203,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
     public ThemeDescription[] getThemeDescriptions() {
         ThemeDescription.ThemeDescriptionDelegate cellDelegate = () -> {
             if (avatarImage != null) {
-                avatarDrawable.setInfo(5, null, null, false);
+                avatarDrawable.setInfo(5, null, null);
                 avatarImage.invalidate();
             }
         };
@@ -1280,7 +1270,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
                 new ThemeDescription(stickersInfoCell3, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{TextInfoPrivacyCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow),
                 new ThemeDescription(stickersInfoCell3, 0, new Class[]{TextInfoPrivacyCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText4),
 
-                new ThemeDescription(null, 0, null, null, new Drawable[]{Theme.avatar_broadcastDrawable, Theme.avatar_savedDrawable}, cellDelegate, Theme.key_avatar_text),
+                new ThemeDescription(null, 0, null, null, new Drawable[]{Theme.avatar_savedDrawable}, cellDelegate, Theme.key_avatar_text),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundRed),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundOrange),
                 new ThemeDescription(null, 0, null, null, null, cellDelegate, Theme.key_avatar_backgroundViolet),

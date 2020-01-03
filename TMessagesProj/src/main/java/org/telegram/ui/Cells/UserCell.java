@@ -168,17 +168,13 @@ public class UserCell extends FrameLayout {
         addButton.setVisibility(value ? VISIBLE : GONE);
     }
 
-    public void setIsAdmin(int value) {
+    public void setAdminRole(String role) {
         if (adminTextView == null) {
             return;
         }
-        adminTextView.setVisibility(value != 0 ? VISIBLE : GONE);
-        if (value == 1) {
-            adminTextView.setText(LocaleController.getString("ChannelCreator", R.string.ChannelCreator));
-        } else if (value == 2) {
-            adminTextView.setText(LocaleController.getString("ChannelAdmin", R.string.ChannelAdmin));
-        }
-        if (value != 0) {
+        adminTextView.setVisibility(role != null ? VISIBLE : GONE);
+        adminTextView.setText(role);
+        if (role != null) {
             CharSequence text = adminTextView.getText();
             int size = (int) Math.ceil(adminTextView.getPaint().measureText(text, 0, text.length()));
             nameTextView.setPadding(LocaleController.isRTL ? size + AndroidUtilities.dp(6) : 0, 0, !LocaleController.isRTL ? size + AndroidUtilities.dp(6) : 0, 0);
@@ -399,9 +395,9 @@ public class UserCell extends FrameLayout {
         } else if (currentChat != null) {
             avatarDrawable.setInfo(currentChat);
         } else if (currentName != null) {
-            avatarDrawable.setInfo(currentId, currentName.toString(), null, false);
+            avatarDrawable.setInfo(currentId, currentName.toString(), null);
         } else {
-            avatarDrawable.setInfo(currentId, "#", null, false);
+            avatarDrawable.setInfo(currentId, "#", null);
         }
 
         if (currentName != null) {
@@ -410,8 +406,10 @@ public class UserCell extends FrameLayout {
         } else {
             if (currentUser != null) {
                 lastName = newName == null ? UserObject.getUserName(currentUser) : newName;
-            } else {
+            } else if (currentChat != null) {
                 lastName = newName == null ? currentChat.title : newName;
+            } else {
+                lastName = "";
             }
             nameTextView.setText(lastName);
         }
@@ -447,6 +445,8 @@ public class UserCell extends FrameLayout {
             avatarImageView.setImage(ImageLocation.getForUser(currentUser, false), "50_50", avatarDrawable, currentUser);
         } else if (currentChat != null) {
             avatarImageView.setImage(ImageLocation.getForChat(currentChat, false), "50_50", avatarDrawable, currentChat);
+        } else {
+            avatarImageView.setImageDrawable(avatarDrawable);
         }
     }
 
