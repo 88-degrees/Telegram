@@ -20,6 +20,10 @@ public class RLottieImageView extends ImageView {
         super(context);
     }
 
+    public void clearLayerColors() {
+        layerColors.clear();
+    }
+
     public void setLayerColor(String layer, int color) {
         if (layerColors == null) {
             layerColors = new HashMap<>();
@@ -60,6 +64,14 @@ public class RLottieImageView extends ImageView {
         setImageDrawable(drawable);
     }
 
+    public void clearAnimationDrawable() {
+        if (drawable != null) {
+            drawable.stop();
+        }
+        drawable = null;
+        setImageDrawable(null);
+    }
+
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
@@ -94,6 +106,12 @@ public class RLottieImageView extends ImageView {
             return;
         }
         drawable.setProgress(progress);
+    }
+
+    @Override
+    public void setImageResource(int resId) {
+        super.setImageResource(resId);
+        drawable = null;
     }
 
     public void playAnimation() {

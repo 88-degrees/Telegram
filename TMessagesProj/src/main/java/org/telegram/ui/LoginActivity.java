@@ -99,6 +99,9 @@ import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.CombinedDrawable;
 import org.telegram.ui.Components.ContextProgressView;
 import org.telegram.ui.Components.EditTextBoldCursor;
+import org.telegram.ui.Components.RLottieDrawable;
+import org.telegram.ui.Components.RLottieImageView;
+import org.telegram.ui.Components.VerticalPositionAutoAnimator;
 import org.telegram.ui.Components.HintEditText;
 import org.telegram.ui.Components.ImageUpdater;
 import org.telegram.ui.Components.LayoutHelper;
@@ -151,6 +154,8 @@ public class LoginActivity extends BaseFragment {
     private static final int DONE_TYPE_ACTION = 1;
 
     private final static int done_button = 1;
+
+    private boolean needRequestPermissions;
 
     private static class ProgressView extends View {
 
@@ -274,59 +279,7 @@ public class LoginActivity extends BaseFragment {
         doneItem.setContentDescription(LocaleController.getString("Done", R.string.Done));
         doneItem.setVisibility(doneButtonVisible[DONE_TYPE_ACTION] ? View.VISIBLE : View.GONE);
 
-        FrameLayout container = new FrameLayout(context) {
-
-            private ObjectAnimator floatingButtonAnimator;
-            private ObjectAnimator privacyViewAnimator;
-
-            @Override
-            public void onViewAdded(View child) {
-                if (child == floatingButtonContainer && floatingButtonAnimator == null) {
-                    floatingButtonAnimator = ObjectAnimator.ofFloat(child, View.TRANSLATION_Y, 0f);
-                    floatingButtonAnimator.setInterpolator(AndroidUtilities.decelerateInterpolator);
-                    floatingButtonAnimator.setStartDelay(150);
-                    floatingButtonAnimator.setDuration(200);
-                }
-            }
-
-            @Override
-            protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-                if (privacyViewAnimator == null) {
-                    final TextView privacyView = ((LoginActivityRegisterView) views[5]).privacyView;
-                    privacyViewAnimator = ObjectAnimator.ofFloat(privacyView, View.TRANSLATION_Y, 0f);
-                    privacyViewAnimator.setInterpolator(AndroidUtilities.decelerateInterpolator);
-                    privacyViewAnimator.setStartDelay(150);
-                    privacyViewAnimator.setDuration(200);
-                }
-
-                if (oldh == 0 || h == oldh || pagesAnimation != null && pagesAnimation.isRunning()) {
-                    return;
-                }
-
-                final float marginBottom = AndroidUtilities.dp(16f);
-
-                if (floatingButtonAnimator != null) {
-                    final float yOffset = floatingButtonContainer.getTranslationY() + oldh - h;
-                    final float viewHeight = floatingButtonContainer.getHeight() + marginBottom;
-                    final float translationY = Math.min(yOffset, viewHeight);
-                    floatingButtonAnimator.cancel();
-                    floatingButtonContainer.setTranslationY(translationY);
-                    floatingButtonAnimator.setFloatValues(translationY, 0f);
-                    floatingButtonAnimator.start();
-                }
-
-                if (currentViewNum == 5) {
-                    final TextView privacyView = ((LoginActivityRegisterView) views[5]).privacyView;
-                    final float yOffset = privacyView.getTranslationY() + oldh - h;
-                    final float viewHeight = privacyView.getHeight() + marginBottom;
-                    final float translationY = Math.min(yOffset, viewHeight);
-                    privacyViewAnimator.cancel();
-                    privacyView.setTranslationY(translationY);
-                    privacyViewAnimator.setFloatValues(translationY, 0f);
-                    privacyViewAnimator.start();
-                }
-            }
-        };
+        FrameLayout container = new FrameLayout(context);
         fragmentView = container;
 
         ScrollView scrollView = new ScrollView(context) {
@@ -410,6 +363,7 @@ public class LoginActivity extends BaseFragment {
                 }
             });
         }
+        VerticalPositionAutoAnimator.attach(floatingButtonContainer);
         container.addView(floatingButtonContainer, LayoutHelper.createFrame(Build.VERSION.SDK_INT >= 21 ? 56 : 60, Build.VERSION.SDK_INT >= 21 ? 56 : 60, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 14, 14));
         floatingButtonContainer.setOnClickListener(view -> onDoneButtonPressed());
 
@@ -469,7 +423,6 @@ public class LoginActivity extends BaseFragment {
     @Override
     public void onPause() {
         super.onPause();
-        AndroidUtilities.removeAdjustResize(getParentActivity(), classGuid, true);
         if (newAccount) {
             ConnectionsManager.getInstance(currentAccount).setAppPaused(true, false);
         }
@@ -481,7 +434,8 @@ public class LoginActivity extends BaseFragment {
         if (newAccount) {
             ConnectionsManager.getInstance(currentAccount).setAppPaused(false, false);
         }
-        AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid, true);
+        AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid);
+        fragmentView.requestLayout();
         try {
             if (currentViewNum >= 1 && currentViewNum <= 4 && views[currentViewNum] instanceof LoginActivitySmsView) {
                 int time = ((LoginActivitySmsView) views[currentViewNum]).openTime;
@@ -492,6 +446,12 @@ public class LoginActivity extends BaseFragment {
             }
         } catch (Exception e) {
             FileLog.e(e);
+        }
+        if (currentViewNum == 0 && !needRequestPermissions) {
+            SlideView view = views[currentViewNum];
+            if (view != null) {
+                view.onShow();
+            }
         }
     }
 
@@ -587,6 +547,7 @@ public class LoginActivity extends BaseFragment {
 
                 }
             } else if (dialog == permissionsShowDialog && !permissionsShowItems.isEmpty() && getParentActivity() != null) {
+                AndroidUtilities.runOnUIThread(() -> needRequestPermissions = false, 200);
                 try {
                     getParentActivity().requestPermissions(permissionsShowItems.toArray(new String[0]), 7);
                 } catch (Exception ignore) {
@@ -1740,6 +1701,7 @@ public class LoginActivity extends BaseFragment {
                                     builder.setPositiveButton(LocaleController.getString("OK", R.string.OK), null);
                                     builder.setMessage(LocaleController.getString("AllowFillNumber", R.string.AllowFillNumber));
                                     permissionsShowDialog = showDialog(builder.create());
+                                    needRequestPermissions = true;
                                 } else {
                                     getParentActivity().requestPermissions(permissionsShowItems.toArray(new String[0]), 7);
                                 }
@@ -1790,13 +1752,18 @@ public class LoginActivity extends BaseFragment {
             }
             AndroidUtilities.runOnUIThread(() -> {
                 if (phoneField != null) {
-                    if (codeField.length() != 0) {
-                        phoneField.requestFocus();
-                        phoneField.setSelection(phoneField.length());
-                        AndroidUtilities.showKeyboard(phoneField);
+                    if (needRequestPermissions) {
+                        codeField.clearFocus();
+                        phoneField.clearFocus();
                     } else {
-                        codeField.requestFocus();
-                        AndroidUtilities.showKeyboard(codeField);
+                        if (codeField.length() != 0) {
+                            phoneField.requestFocus();
+                            phoneField.setSelection(phoneField.length());
+                            AndroidUtilities.showKeyboard(phoneField);
+                        } else {
+                            codeField.requestFocus();
+                            AndroidUtilities.showKeyboard(codeField);
+                        }
                     }
                 }
             }, 100);
@@ -1843,11 +1810,13 @@ public class LoginActivity extends BaseFragment {
         private TextView confirmTextView;
         private TextView titleTextView;
         private ImageView blackImageView;
-        private ImageView blueImageView;
+        private RLottieImageView blueImageView;
         private TextView timeText;
         private TextView problemText;
         private Bundle currentParams;
         private ProgressView progressView;
+
+        RLottieDrawable hintDrawable;
 
         private Timer timeTimer;
         private Timer codeTimer;
@@ -1912,18 +1881,19 @@ public class LoginActivity extends BaseFragment {
                     blackImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.MULTIPLY));
                     frameLayout.addView(blackImageView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 0));
 
-                    blueImageView = new ImageView(context);
+                    blueImageView = new RLottieImageView(context);
                     blueImageView.setImageResource(R.drawable.sms_bubble);
                     blueImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_chats_actionBackground), PorterDuff.Mode.MULTIPLY));
                     frameLayout.addView(blueImageView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 0));
 
                     titleTextView.setText(LocaleController.getString("SentAppCodeTitle", R.string.SentAppCodeTitle));
                 } else {
-                    blueImageView = new ImageView(context);
-                    blueImageView.setImageResource(R.drawable.sms_code);
-                    blueImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_chats_actionBackground), PorterDuff.Mode.MULTIPLY));
-                    frameLayout.addView(blueImageView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 0));
-
+                    blueImageView = new RLottieImageView(context);
+                    hintDrawable = new RLottieDrawable(R.raw.sms_incoming_info, "" + R.raw.sms_incoming_info, AndroidUtilities.dp(64), AndroidUtilities.dp(64), true, null);
+                    hintDrawable.setLayerColor("Bubble.**", Theme.getColor(Theme.key_chats_actionBackground));
+                    hintDrawable.setLayerColor("Phone.**", Theme.getColor(Theme.key_chats_actionBackground));
+                    blueImageView.setAnimation(hintDrawable);
+                    frameLayout.addView(blueImageView, LayoutHelper.createFrame(64, 64, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 0));
                     titleTextView.setText(LocaleController.getString("SentSmsCodeTitle", R.string.SentSmsCodeTitle));
                 }
                 addView(titleTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 18, 0, 0));
@@ -2013,10 +1983,8 @@ public class LoginActivity extends BaseFragment {
                 int maxHeight = AndroidUtilities.dp(291);
                 if (scrollHeight - innerHeight < requiredHeight) {
                     setMeasuredDimension(getMeasuredWidth(), innerHeight + requiredHeight);
-                } else if (scrollHeight > maxHeight) {
-                    setMeasuredDimension(getMeasuredWidth(), maxHeight);
                 } else {
-                    setMeasuredDimension(getMeasuredWidth(), scrollHeight);
+                    setMeasuredDimension(getMeasuredWidth(), Math.min(scrollHeight, maxHeight));
                 }
             }
         }
@@ -2633,6 +2601,9 @@ public class LoginActivity extends BaseFragment {
             if (currentType == 3) {
                 return;
             }
+            if (hintDrawable != null) {
+                hintDrawable.setCurrentFrame(0);
+            }
             AndroidUtilities.runOnUIThread(() -> {
                 if (codeField != null) {
                     for (int a = codeField.length - 1; a >= 0; a--) {
@@ -2643,6 +2614,9 @@ public class LoginActivity extends BaseFragment {
                             break;
                         }
                     }
+                }
+                if (hintDrawable != null) {
+                    hintDrawable.start();
                 }
             }, 100);
         }
@@ -3475,7 +3449,7 @@ public class LoginActivity extends BaseFragment {
         private BackupImageView avatarImage;
         private AvatarDrawable avatarDrawable;
         private View avatarOverlay;
-        private ImageView avatarEditor;
+        private RLottieImageView avatarEditor;
         private RadialProgressView avatarProgressView;
         private AnimatorSet avatarAnimation;
         private TextView textView;
@@ -3486,11 +3460,12 @@ public class LoginActivity extends BaseFragment {
         private Bundle currentParams;
         private boolean nextPressed = false;
 
+        private RLottieDrawable cameraDrawable;
+
         private ImageUpdater imageUpdater;
 
         private TLRPC.FileLocation avatar;
         private TLRPC.FileLocation avatarBig;
-        private TLRPC.InputFile uploadedAvatar;
 
         private boolean createAfterUpload;
 
@@ -3549,11 +3524,12 @@ public class LoginActivity extends BaseFragment {
 
             setOrientation(VERTICAL);
 
-            imageUpdater = new ImageUpdater();
+            imageUpdater = new ImageUpdater(false);
+            imageUpdater.setOpenWithFrontfaceCamera(true);
             imageUpdater.setSearchAvailable(false);
             imageUpdater.setUploadAfterSelect(false);
             imageUpdater.parentFragment = LoginActivity.this;
-            imageUpdater.delegate = this;
+            imageUpdater.setDelegate(this);
 
             textView = new TextView(context);
             textView.setText(LocaleController.getString("RegisterText2", R.string.RegisterText2));
@@ -3597,21 +3573,32 @@ public class LoginActivity extends BaseFragment {
                 protected void onDraw(Canvas canvas) {
                     if (avatarImage != null && avatarProgressView.getVisibility() == VISIBLE) {
                         paint.setAlpha((int) (0x55 * avatarImage.getImageReceiver().getCurrentAlpha() * avatarProgressView.getAlpha()));
-                        canvas.drawCircle(getMeasuredWidth() / 2, getMeasuredHeight() / 2, AndroidUtilities.dp(32), paint);
+                        canvas.drawCircle(getMeasuredWidth() / 2.0f, getMeasuredHeight() / 2.0f, getMeasuredWidth() / 2.0f, paint);
                     }
                 }
             };
             editTextContainer.addView(avatarOverlay, LayoutHelper.createFrame(64, 64, Gravity.TOP | (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT), 0, 16, 0, 0));
-            avatarOverlay.setOnClickListener(view -> imageUpdater.openMenu(avatar != null, () -> {
-                avatar = null;
-                avatarBig = null;
-                uploadedAvatar = null;
-                showAvatarProgress(false, true);
-                avatarImage.setImage(null, null, avatarDrawable, null);
-                avatarEditor.setImageResource(R.drawable.actions_setphoto);
-            }));
+            avatarOverlay.setOnClickListener(view -> {
+                imageUpdater.openMenu(avatar != null, () -> {
+                    avatar = null;
+                    avatarBig = null;
+                    showAvatarProgress(false, true);
+                    avatarImage.setImage(null, null, avatarDrawable, null);
+                    avatarEditor.setImageResource(R.drawable.actions_setphoto);
+                    avatarEditor.setAnimation(cameraDrawable);
+                    cameraDrawable.setCurrentFrame(0);
+                }, dialog -> {
+                    cameraDrawable.setCustomEndFrame(86);
+                    avatarEditor.playAnimation();
+                });
+                cameraDrawable.setCurrentFrame(0);
+                cameraDrawable.setCustomEndFrame(43);
+                avatarEditor.playAnimation();
+            });
 
-            avatarEditor = new ImageView(context) {
+            cameraDrawable = new RLottieDrawable(R.raw.camera, "" + R.raw.camera, AndroidUtilities.dp(60), AndroidUtilities.dp(60), false, null);
+
+            avatarEditor = new RLottieImageView(context) {
                 @Override
                 public void invalidate(int l, int t, int r, int b) {
                     super.invalidate(l, t, r, b);
@@ -3625,10 +3612,10 @@ public class LoginActivity extends BaseFragment {
                 }
             };
             avatarEditor.setScaleType(ImageView.ScaleType.CENTER);
-            avatarEditor.setImageResource(R.drawable.actions_setphoto);
+            avatarEditor.setAnimation(cameraDrawable);
             avatarEditor.setEnabled(false);
             avatarEditor.setClickable(false);
-            avatarEditor.setPadding(AndroidUtilities.dp(2), 0, 0, 0);
+            avatarEditor.setPadding(AndroidUtilities.dp(2), 0, 0, AndroidUtilities.dp(1));
             editTextContainer.addView(avatarEditor, LayoutHelper.createFrame(64, 64, Gravity.TOP | (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT), 0, 16, 0, 0));
 
             avatarProgressView = new RadialProgressView(context) {
@@ -3713,6 +3700,7 @@ public class LoginActivity extends BaseFragment {
             privacyView.setLinkTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteLinkText));
             privacyView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             privacyView.setLineSpacing(AndroidUtilities.dp(2), 1.0f);
+            VerticalPositionAutoAnimator.attach(privacyView);
             privacyLayout.addView(privacyView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM));
 
             String str = LocaleController.getString("TermsOfServiceLogin", R.string.TermsOfServiceLogin);
@@ -3728,7 +3716,7 @@ public class LoginActivity extends BaseFragment {
         }
 
         @Override
-        public void didUploadPhoto(final TLRPC.InputFile file, final TLRPC.PhotoSize bigSize, final TLRPC.PhotoSize smallSize) {
+        public void didUploadPhoto(final TLRPC.InputFile photo, final TLRPC.InputFile video, double videoStartTimestamp, String videoPath, final TLRPC.PhotoSize bigSize, final TLRPC.PhotoSize smallSize) {
             AndroidUtilities.runOnUIThread(() -> {
                 avatar = smallSize.location;
                 avatarBig = bigSize.location;
@@ -3974,6 +3962,7 @@ public class LoginActivity extends BaseFragment {
         }
     }
 
+
     @Override
     public ArrayList<ThemeDescription> getThemeDescriptions() {
         for (int a = 0;a < views.length; a++) {
@@ -3992,6 +3981,18 @@ public class LoginActivity extends BaseFragment {
         LoginActivityResetWaitView waitView = (LoginActivityResetWaitView) views[8];
 
         ArrayList<ThemeDescription> arrayList = new ArrayList<>();
+
+        ThemeDescription.ThemeDescriptionDelegate descriptionDelegate = () -> {
+            for (int i = 0; i < views.length; i++) {
+                if (views[i] instanceof LoginActivitySmsView) {
+                    LoginActivitySmsView smsView = (LoginActivitySmsView) views[i];
+                    if (smsView.hintDrawable != null) {
+                        smsView.hintDrawable.setLayerColor("Bubble.**", Theme.getColor(Theme.key_chats_actionBackground));
+                        smsView.hintDrawable.setLayerColor("Phone.**", Theme.getColor(Theme.key_chats_actionBackground));
+                    }
+                }
+            }
+        };
 
         arrayList.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
 
@@ -4113,6 +4114,8 @@ public class LoginActivity extends BaseFragment {
         arrayList.add(new ThemeDescription(smsView4.progressView, 0, new Class[]{ProgressView.class}, new String[]{"paint"}, null, null, null, Theme.key_login_progressOuter));
         arrayList.add(new ThemeDescription(smsView4.blackImageView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         arrayList.add(new ThemeDescription(smsView4.blueImageView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chats_actionBackground));
+
+        arrayList.add(new ThemeDescription(smsView4.blueImageView, 0, null, null, null, descriptionDelegate, Theme.key_chats_actionBackground));
 
         return arrayList;
     }

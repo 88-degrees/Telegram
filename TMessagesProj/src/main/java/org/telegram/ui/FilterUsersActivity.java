@@ -355,7 +355,6 @@ public class FilterUsersActivity extends BaseFragment implements NotificationCen
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.contactsDidLoad);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.updateInterfaces);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.chatDidCreated);
-        AndroidUtilities.removeAdjustResize(getParentActivity(), classGuid, true);
     }
 
     @Override
@@ -819,7 +818,7 @@ public class FilterUsersActivity extends BaseFragment implements NotificationCen
         if (editText != null) {
             editText.requestFocus();
         }
-        AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid, true);
+        AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid);
     }
 
     @Override
@@ -1045,7 +1044,7 @@ public class FilterUsersActivity extends BaseFragment implements NotificationCen
             View view;
             switch (viewType) {
                 case 1:
-                    view = new GroupCreateUserCell(context, true, 0, true);
+                    view = new GroupCreateUserCell(context, 1, 0, true);
                     break;
                 case 2:
                 default:
@@ -1283,7 +1282,9 @@ public class FilterUsersActivity extends BaseFragment implements NotificationCen
                                 TLRPC.User user = (TLRPC.User) object;
                                 names[0] = ContactsController.formatName(user.first_name, user.last_name).toLowerCase();
                                 username = user.username;
-                                if (user.self) {
+                                if (UserObject.isReplyUser(user)) {
+                                    names[2] = LocaleController.getString("RepliesTitle", R.string.RepliesTitle).toLowerCase();
+                                } else if (user.self) {
                                     names[2] = LocaleController.getString("SavedMessages", R.string.SavedMessages).toLowerCase();
                                 }
                             } else {

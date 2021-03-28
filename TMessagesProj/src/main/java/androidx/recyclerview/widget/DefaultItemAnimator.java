@@ -30,7 +30,6 @@ import androidx.core.view.ViewCompat;
 import org.telegram.messenger.BuildVars;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -54,10 +53,12 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
     ArrayList<ArrayList<RecyclerView.ViewHolder>> mAdditionsList = new ArrayList<>();
     ArrayList<ArrayList<MoveInfo>> mMovesList = new ArrayList<>();
     ArrayList<ArrayList<ChangeInfo>> mChangesList = new ArrayList<>();
+    ArrayList<MoveInfo> currentMoves = new ArrayList<>();
+    ArrayList<ChangeInfo> currentChanges = new ArrayList<>();
 
-    ArrayList<RecyclerView.ViewHolder> mAddAnimations = new ArrayList<>();
-    ArrayList<RecyclerView.ViewHolder> mMoveAnimations = new ArrayList<>();
-    ArrayList<RecyclerView.ViewHolder> mRemoveAnimations = new ArrayList<>();
+    protected ArrayList<RecyclerView.ViewHolder> mAddAnimations = new ArrayList<>();
+    protected ArrayList<RecyclerView.ViewHolder> mMoveAnimations = new ArrayList<>();
+    protected ArrayList<RecyclerView.ViewHolder> mRemoveAnimations = new ArrayList<>();
     ArrayList<RecyclerView.ViewHolder> mChangeAnimations = new ArrayList<>();
 
     protected boolean delayAnimations = true;
@@ -66,7 +67,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         public RecyclerView.ViewHolder holder;
         public int fromX, fromY, toX, toY;
 
-        MoveInfo(RecyclerView.ViewHolder holder, int fromX, int fromY, int toX, int toY) {
+        public MoveInfo(RecyclerView.ViewHolder holder, int fromX, int fromY, int toX, int toY) {
             this.holder = holder;
             this.fromX = fromX;
             this.fromY = fromY;
@@ -131,6 +132,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
                 public void run() {
                     for (MoveInfo moveInfo : moves) {
                         animateMoveImpl(moveInfo.holder, moveInfo);
+                        currentMoves.add(moveInfo);
                     }
                     moves.clear();
                     mMovesList.remove(moves);
@@ -154,6 +156,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
                 public void run() {
                     for (ChangeInfo change : changes) {
                         animateChangeImpl(change);
+                        currentChanges.add(change);
                     }
                     changes.clear();
                     mChangesList.remove(changes);
@@ -186,13 +189,17 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
                 long removeDuration = removalsPending ? getRemoveDuration() : 0;
                 long moveDuration = movesPending ? getMoveDuration() : 0;
                 long changeDuration = changesPending ? getChangeDuration() : 0;
-                long totalDelay = removeDuration + Math.max(moveDuration, changeDuration);
+                long totalDelay = getAddAnimationDelay(removeDuration, moveDuration, changeDuration);
                 View view = additions.get(0).itemView;
                 ViewCompat.postOnAnimationDelayed(view, adder, totalDelay);
             } else {
                 adder.run();
             }
         }
+    }
+
+    protected long getAddAnimationDelay(long removeDuration, long moveDuration, long changeDuration) {
+        return removeDuration + Math.max(moveDuration, changeDuration);
     }
 
     protected long getMoveAnimationDelay() {
@@ -205,6 +212,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         mPendingRemovals.add(holder);
         return true;
     }
+
 
     public void setDelayAnimations(boolean value) {
         delayAnimations = value;
@@ -295,7 +303,7 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
 
     }
 
-    void animateMoveImpl(final RecyclerView.ViewHolder holder, MoveInfo moveInfo) {
+    protected void animateMoveImpl(final RecyclerView.ViewHolder holder, MoveInfo moveInfo) {
         int fromX = moveInfo.fromX;
         int fromY = moveInfo.fromY;
         int toX = moveInfo.toX;
@@ -481,10 +489,14 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         endChangeAnimation(mPendingChanges, item);
         if (mPendingRemovals.remove(item)) {
             view.setAlpha(1);
+            view.setScaleX(1f);
+            view.setScaleY(1f);
             dispatchRemoveFinished(item);
         }
         if (mPendingAdditions.remove(item)) {
             view.setAlpha(1);
+            view.setScaleX(1f);
+            view.setScaleY(1f);
             dispatchAddFinished(item);
         }
 
@@ -557,6 +569,22 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         endAnimation(holder);
     }
 
+    public float getTargetY(View view) {
+        for (int i = currentMoves.size() - 1; i >= 0; i--) {
+            MoveInfo moveInfo = currentMoves.get(i);
+            if (moveInfo.holder.itemView == view) {
+                return Math.min(Math.min(moveInfo.toY, moveInfo.fromY), view.getY());
+            }
+        }
+        for (int i = currentChanges.size() - 1; i >= 0; i--) {
+            ChangeInfo changeInfo = currentChanges.get(i);
+            if (changeInfo.oldHolder.itemView == view || changeInfo.newHolder.itemView == view) {
+                return Math.min(Math.min(changeInfo.toY, changeInfo.fromY), view.getY());
+            }
+        }
+        return view.getY();
+    }
+
     @Override
     public boolean isRunning() {
         return (!mPendingAdditions.isEmpty()
@@ -581,6 +609,8 @@ public class DefaultItemAnimator extends SimpleItemAnimator {
         if (!isRunning()) {
             dispatchAnimationsFinished();
             onAllAnimationsDone();
+            currentMoves.clear();
+            currentChanges.clear();
         }
     }
 

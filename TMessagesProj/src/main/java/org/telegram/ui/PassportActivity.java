@@ -1122,7 +1122,7 @@ public class PassportActivity extends BaseFragment implements NotificationCenter
                         spanned.setSpan(new URLSpanNoUnderline(LocaleController.getString("PassportInfoUrl", R.string.PassportInfoUrl)) {
                             @Override
                             public void onClick(View widget) {
-                                dismissCurrentDialig();
+                                dismissCurrentDialog();
                                 super.onClick(widget);
                             }
                         }, index1, index2 - 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -1288,7 +1288,7 @@ public class PassportActivity extends BaseFragment implements NotificationCenter
 
         if (currentActivityType != TYPE_REQUEST && currentActivityType != TYPE_MANAGE) {
             ActionBarMenu menu = actionBar.createMenu();
-            doneItem = menu.addItemWithWidth(done_button, R.drawable.ic_done, AndroidUtilities.dp(56));
+            doneItem = menu.addItemWithWidth(done_button, R.drawable.ic_done, AndroidUtilities.dp(56), LocaleController.getString("Done", R.string.Done));
             progressView = new ContextProgressView(context, 1);
             progressView.setAlpha(0.0f);
             progressView.setScaleX(0.1f);
@@ -1341,14 +1341,14 @@ public class PassportActivity extends BaseFragment implements NotificationCenter
     }
 
     @Override
-    public void dismissCurrentDialig() {
+    public void dismissCurrentDialog() {
         if (chatAttachAlert != null && visibleDialog == chatAttachAlert) {
             chatAttachAlert.getPhotoLayout().closeCamera(false);
             chatAttachAlert.dismissInternal();
             chatAttachAlert.getPhotoLayout().hideCamera(true);
             return;
         }
-        super.dismissCurrentDialig();
+        super.dismissCurrentDialog();
     }
 
     private String getTranslitString(String value) {
@@ -6617,7 +6617,7 @@ public class PassportActivity extends BaseFragment implements NotificationCenter
     @Override
     public void onRequestPermissionsResultFragment(int requestCode, String[] permissions, int[] grantResults) {
         if ((currentActivityType == TYPE_IDENTITY || currentActivityType == TYPE_ADDRESS) && chatAttachAlert != null) {
-            if (requestCode == 17 && chatAttachAlert != null) {
+            if (requestCode == 17) {
                 chatAttachAlert.getPhotoLayout().checkCamera(false);
             } else if (requestCode == 21) {
                 if (getParentActivity() == null) {
@@ -6866,8 +6866,8 @@ public class PassportActivity extends BaseFragment implements NotificationCenter
                 }
 
                 @Override
-                public void needEnterComment() {
-
+                public boolean needEnterComment() {
+                    return false;
                 }
 
                 @Override
